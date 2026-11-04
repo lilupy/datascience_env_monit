@@ -4,6 +4,11 @@ Main goal: learning to use git, github and UniCluster
 
 Bootstraps a synthetic GPP series and prints a 95% interval.
 
+## Some Infos
+
+Running the cluster works from folder C:\Users\lilly\Documents\Uni\WiSe26-27\Data_Analysis\lecture02_git_cluster\datascience_env_monit
+-> Not sure whether it works from another folder
+
 ## Run
 Rscript scripts/cluster_hello.R 200
 
