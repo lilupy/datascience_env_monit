@@ -2,8 +2,6 @@
 # Author: Lilly
 # Some new info
 
-x <- "hello, test"
-
 args <- commandArgs(trailingOnly = TRUE)
 n_boot <- 5000L
 if (length(args) > 0) n_boot <- as.integer(args[1])
