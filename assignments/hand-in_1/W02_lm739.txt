@@ -1,0 +1,43 @@
+1. link to my Github fork:
+https://github.com/lilupy/datascience_env_monit
+
+2. output from .out file:
+[fr_lm739@uc3n991 fr_lm739-envmon]$ cat hello_R_*.out
+Loading module dependency 'compiler/gnu/11.4'.
+Host: uc3n069.localdomain
+Job ID: 8287470
+Resamples: 5000
+Mean daily GPP: 3.98 (95% CI 3.83 to 4.14)
+
+============================= JOB FEEDBACK =============================
+
+NodeName=uc3n069
+Job ID: 8287470
+Cluster: uc3
+User/Group: fr_lm739/fr_fr
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 2
+CPU Utilized: 00:00:00
+CPU Efficiency: 0.00% of 00:00:36 core-walltime
+Job Wall-clock time: 00:00:18
+Memory Utilized: 34.83 MB
+Memory Efficiency: 0.87% of 3.91 GB (1.95 GB/core)
+
+3. copy of STORAGE file:
+# Storage and backup (copy this file to STORAGE.md and fill it in)
+
+## Where things live
+- Code: GitHub (lilupy/datascience_env_monit),
+  my laptop, cluster HOME
+- Results: cluster workspace `envmon`, path: /pfs/work9/workspace/scratch/fr_lm739-envmon
+- access to cluster and data via folder: C:\Users\lilly\Documents\Uni\WiSe26-27\Data_Analysis\lecture02_git_cluster\datascience_env_monit
+
+## Expiry
+- Workspace `envmon` expires on: Sun Jan  3 15:27:58 2027
+- I extend it on: 02.01.2027. Calendar reminder set: yes
+
+## Backup
+- Code: GitHub is the second copy
+- Results I must keep: copied to my laptop on 04.11.2026
+- Raw data: original download source + <university storage> (?)
