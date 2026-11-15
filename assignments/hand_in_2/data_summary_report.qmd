@@ -1,0 +1,333 @@
+---
+title: "Data summary of my four flux towers"
+author: "Lilly"
+date: 15.11.2026
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  warning: false
+---
+# Data Summary Report
+
+## Section 1 - Overview
+```{r}
+#libraries
+library (ggplot2)
+library(tidyverse)
+library(knitr)
+library(here)
+
+#data
+sites <- c("JP-Tef", "US-Akn", "DE-GsB", "FR-EM2")
+snapshots <- read.csv(here("data", "snapshots", "fluxnet_shuttle_snapshot_20261113T105848.csv"))
+
+overview <- snapshots |> 
+    filter(site_id %in% sites) |> 
+    select(site_id, site_name, location_lat, location_long, igbp, first_year, last_year, data_hub, network, product_citation)
+
+# map 
+lat <- overview$location_lat
+long <- overview$location_long
+
+world <- map_data("world")
+ggplot() +
+  geom_polygon(data = world, aes(x = long, y = lat, group = group),
+               fill = "grey90", colour = "grey60", linewidth = 0.2) +
+  geom_point(data = overview, aes(x = long, y = lat), colour = "red", size = 2) +
+  geom_text(data = overview, aes(x = long, y = lat, label = site_id),
+            size = 3, vjust = -0.8) +
+  #coord_quickmap(xlim = c(-10, 30), ylim = c(35, 60)) +   # zoom to Europe
+  theme_minimal() +
+  labs(x = "Longitude", y = "Latitude")
+```
+
+## Section 2 - Data coverage
+```{r}
+# heatmap
+data <- read_csv(here("data", "complete_data.csv"),
+                 col_types = cols(TIMESTAMP_START = "c", TIMESTAMP_END = "c",
+                                  site = "c", time = "-", .default = "d")) |>
+  mutate(time = as.POSIXct(TIMESTAMP_START, format = "%Y%m%d%H%M", tz = "UTC"))
+
+nee_share <- data|>
+  mutate(year = year(time)) |>
+  group_by(site, year) |>
+  summarise(share_measured = mean(NEE_VUT_REF_QC %in% 0),   # TRUE = 1, FALSE = 0
+            n_halfhours    = n(),
+            .groups = "drop")
+
+ggplot(nee_share, aes(x = year, y = site, fill = share_measured)) +
+  geom_tile(colour = "white", linewidth = 0.3) +
+  scale_fill_viridis_c(name = "Share measured",
+                       labels = scales::percent,
+                       limits = c(0, 1)) +
+  scale_x_continuous(breaks = scales::breaks_width(2), expand = c(0, 0)) +
+  labs(x = "Year", y = "Site",
+       title = "Share of half hours with measured NEE (QC = 0)") +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
+```
+
+Best coverage site: by JP-Tef, since it is the longest one (2001-2023)
+Years are best covered from 2017-2022
+
+## Section 3 - Summary statistics
+```{r}
+vars <- c("TA_F", "SW_IN_F", "VPD_F", "P_F", "NEE_VUT_REF",
+          "GPP_NT_VUT_REF", "RECO_NT_VUT_REF", "H_F_MDS", "LE_F_MDS")
+
+units <- c(TA_F            = "°C",
+           SW_IN_F         = "W m⁻²",
+           VPD_F           = "hPa",
+           P_F             = "mm; Mean = annual sum in mm yr⁻¹",
+           NEE_VUT_REF     = "µmol CO₂ m⁻² s⁻¹",
+           GPP_NT_VUT_REF  = "µmol CO₂ m⁻² s⁻¹",
+           RECO_NT_VUT_REF = "µmol CO₂ m⁻² s⁻¹",
+           H_F_MDS         = "W m⁻²",
+           LE_F_MDS        = "W m⁻²")
+
+# 1. Mean, min, max and % missing per site and variable
+summary_long <- data |>
+  pivot_longer(all_of(vars), names_to = "variable", values_to = "value") |>
+  group_by(site, variable) |>
+  summarise(all_na        = all(is.na(value)),
+            Mean          = if (all_na) NA_real_ else mean(value, na.rm = TRUE),
+            Min           = if (all_na) NA_real_ else min(value, na.rm = TRUE),
+            Max           = if (all_na) NA_real_ else max(value, na.rm = TRUE),
+            `Missing (%)` = 100 * mean(is.na(value)),
+            .groups = "drop") |>
+  select(-all_na)
+
+# 2. Precipitation: mean of the annual sums
+p_annual <- data |>
+  group_by(site, year = year(time)) |>
+  summarise(p_sum = sum(P_F, na.rm = TRUE), .groups = "drop") |>
+  group_by(site) |>
+  summarise(p_mean_annual = mean(p_sum))
+
+summary_long <- summary_long |>
+  left_join(p_annual, by = "site") |>
+  mutate(Mean = if_else(variable == "P_F", p_mean_annual, Mean)) |>
+  select(-p_mean_annual)
+
+# 3. Reshape: statistics as rows, variables (with units) as columns
+headers <- paste0(vars, " (", units[vars], ")")
+
+site_tables <- summary_long |>
+  mutate(variable = factor(paste0(variable, " (", units[variable], ")"), levels = headers)) |>
+  pivot_longer(c(Mean, Min, Max, `Missing (%)`), names_to = "Statistic") |>
+  mutate(Statistic = factor(Statistic, levels = c("Mean", "Min", "Max", "Missing (%)"))) |>
+  pivot_wider(names_from = variable, values_from = value, names_sort = TRUE) |>
+  arrange(site, Statistic)
+
+# 4. one table per site
+for (s in unique(site_tables$site)) {
+  assign(paste0("summary_", gsub("-", "_", s)),
+         site_tables |> filter(site == s) |> select(-site))
+}
+
+print(summary_DE_GsB)
+print(summary_FR_EM2)
+print(summary_JP_Tef)
+print(summary_US_Akn)
+``` 
+
+## Section 4 - Time Series
+```{r}
+flux_vars <- c("NEE_VUT_REF", "GPP_NT_VUT_REF", "RECO_NT_VUT_REF")
+conv <- 1.0378   # µmol CO2 m-2 s-1  ->  g C m-2 d-1
+
+# 1. Aggregate half-hourly data to daily values
+daily <- data |>
+  mutate(date = as_date(time)) |>
+  group_by(site, date) |>
+  summarise(across(all_of(flux_vars),
+                   list(val = \(x) mean(x, na.rm = TRUE) * conv,
+                        n   = \(x) sum(!is.na(x)))),
+            .groups = "drop") |>
+  # only keep days that have all 48 half hours
+  mutate(NEE  = if_else(NEE_VUT_REF_n     == 48, NEE_VUT_REF_val,     NA),
+         GPP  = if_else(GPP_NT_VUT_REF_n  == 48, GPP_NT_VUT_REF_val,  NA),
+         RECO = if_else(RECO_NT_VUT_REF_n == 48, RECO_NT_VUT_REF_val, NA)) |>
+  select(site, date, NEE, GPP, RECO)
+
+# 2. Plot: one panel per site
+daily |>
+  pivot_longer(c(NEE, GPP, RECO), names_to = "flux", values_to = "value") |>
+  mutate(flux = factor(flux, levels = c("GPP", "RECO", "NEE"))) |>
+  ggplot(aes(x = date, y = value, colour = flux)) +
+  geom_hline(yintercept = 0, colour = "grey50", linewidth = 0.3) +
+  geom_line(linewidth = 0.25, alpha = 0.8) +
+  facet_wrap(~ site, ncol = 1, scales = "free_x") +
+  scale_colour_manual(values = c(GPP = "#1b9e77", RECO = "#d95f02", NEE = "#3d3d3d")) +
+  labs(x = NULL, y = expression("Flux (g C m"^-2*" d"^-1*")"), colour = NULL,
+       title = "Daily NEE, GPP and RECO") +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+# 3. Check against the FLUXMET_DD file for one site
+check_site <- "DE-GsB"
+
+zip_file <- list.files(here("data", "raw"),
+                       pattern = paste0(check_site, ".*\\.zip$"),   # only this site's zip
+                       full.names = TRUE)
+dd_name  <- grep("FLUXMET_DD", unzip(zip_file, list = TRUE)$Name, value = TRUE)
+unzip(zip_file, files = dd_name, exdir = here("data", "raw", "unzipped"))
+
+dd <- read_csv(here("data", "raw", "unzipped", dd_name),
+               na = "-9999",
+               col_select = c(TIMESTAMP, all_of(flux_vars)),
+               col_types = cols(TIMESTAMP = "c", .default = "d")) |>
+  mutate(date = as_date(TIMESTAMP, format = "%Y%m%d"))
+
+comparison <- daily |>
+  filter(site == check_site) |>
+  inner_join(dd, by = "date")
+
+# Differences (should be close to 0)
+comparison |>
+  summarise(NEE_max_diff  = max(abs(NEE  - NEE_VUT_REF),     na.rm = TRUE),
+            GPP_max_diff  = max(abs(GPP  - GPP_NT_VUT_REF),  na.rm = TRUE),
+            RECO_max_diff = max(abs(RECO - RECO_NT_VUT_REF), na.rm = TRUE),
+            NEE_r         = cor(NEE, NEE_VUT_REF, use = "complete.obs"))
+
+# Visual check: points should lie on the 1:1 line
+ggplot(comparison, aes(x = NEE_VUT_REF, y = NEE)) +
+  geom_abline(slope = 1, intercept = 0, colour = "red") +
+  geom_point(size = 0.5, alpha = 0.4) +
+  coord_equal() +
+  labs(x = "NEE from FLUXMET_DD (g C m⁻² d⁻¹)",
+       y = "NEE aggregated from HH (g C m⁻² d⁻¹)",
+       title = paste("Check of daily aggregation –", check_site)) +
+  theme_minimal()
+```
+
+## Section 5 - Diurnal Cycle
+```{r}
+# Latitude per site (adjust column names to your snapshots table)
+site_info <- snapshots |>
+  distinct(site = site_id, lat = location_lat)
+
+season_levels <- c("Winter", "Spring", "Summer", "Autumn")
+
+diurnal <- data |>
+  left_join(site_info, by = "site") |>
+  mutate(
+    month = month(time),
+    # meteorological seasons for the northern hemisphere
+    season_nh = case_when(month %in% c(12, 1, 2) ~ "Winter",
+                          month %in% 3:5         ~ "Spring",
+                          month %in% 6:8         ~ "Summer",
+                          TRUE                   ~ "Autumn"),
+    # southern hemisphere: shift by half a year
+    season = if_else(lat >= 0, season_nh,
+                     recode(season_nh, Winter = "Summer", Summer = "Winter",
+                                       Spring = "Autumn", Autumn = "Spring")),
+    season = factor(season, levels = season_levels),
+    # hour of day, centred on the half hour (00:00–00:30 -> 0.25)
+    hour = hour(time) + minute(time) / 60 + 0.25
+  ) |>
+  group_by(site, season, hour) |>
+  summarise(NEE = mean(NEE_VUT_REF, na.rm = TRUE),
+            LE  = mean(LE_F_MDS,    na.rm = TRUE),
+            .groups = "drop") |>
+  pivot_longer(c(NEE, LE), names_to = "variable", values_to = "value") |>
+  mutate(variable = factor(variable, levels = c("NEE", "LE"),
+                           labels = c("NEE (µmol CO₂ m⁻² s⁻¹)", "LE (W m⁻²)")))
+
+# Safety check: every site needs a latitude
+stopifnot(!anyNA(site_info$lat[site_info$site %in% unique(data$site)]))
+
+ggplot(diurnal, aes(x = hour, y = value, colour = site)) +
+  geom_hline(yintercept = 0, colour = "grey60", linewidth = 0.3) +
+  geom_line(linewidth = 0.6) +
+  facet_grid(variable ~ season, scales = "free_y", switch = "y") +
+  scale_x_continuous(breaks = seq(0, 24, 6), limits = c(0, 24)) +
+  labs(x = "Hour of day (local standard time)", y = NULL, colour = "Site",
+       title = "Mean diurnal course of NEE and LE by season") +
+  theme_minimal() +
+  theme(strip.placement = "outside", legend.position = "bottom")
+```
+### Seasonal Shift
+For sites in the southern hemisphere (latitude < 0°), the seasons are shifted by six months: December–February is summer, March–May is autumn, June–August is winter and September–November is spring.
+
+## Sectio 6 - Reading data
+```{r}
+data |>
+  group_by(site) |>
+  summarise(NETRAD_avail = mean(!is.na(NETRAD)),
+            G_avail      = mean(!is.na(G_F_MDS)),
+            .groups = "drop")
+
+eb_site <- "FR-EM2"   #site with NETRAD and G
+
+eb <- data |>
+  filter(site == eb_site,
+         H_F_MDS_QC == 0, LE_F_MDS_QC == 0) |>          # H and LE measured
+  mutate(turbulent = H_F_MDS + LE_F_MDS,
+         available = NETRAD - G_F_MDS) |>
+  filter(!is.na(turbulent), !is.na(available))
+
+# Linear fit: turbulent fluxes ~ available energy
+fit   <- lm(turbulent ~ available, data = eb)
+slope <- coef(fit)[["available"]]
+icpt  <- coef(fit)[[1]]
+r2    <- summary(fit)$r.squared
+
+label <- sprintf("Slope = %.2f\nIntercept = %.1f W m⁻²\nR² = %.2f\nn = %d",
+                 slope, icpt, r2, nrow(eb))
+
+ggplot(eb, aes(x = available, y = turbulent)) +
+  geom_point(size = 0.4, alpha = 0.15) +
+  geom_abline(slope = 1, intercept = 0, colour = "red", linetype = "dashed") +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "blue", se = FALSE, linewidth = 0.8) +
+  annotate("text", x = -Inf, y = Inf, label = label, hjust = -0.1, vjust = 1.2, size = 3.5) +
+  coord_equal() +
+  labs(x = expression(R[n] - G ~ "(W m"^-2*")"),
+       y = expression(H + LE ~ "(W m"^-2*")"),
+       title = paste("Energy balance closure –", eb_site),
+       subtitle = "Half hours with measured H and LE (QC = 0); red dashed = 1:1, blue = linear fit") +
+  theme_minimal()
+
+# how much is gap filled?
+qc_vars <- c("NEE_VUT_REF_QC", "H_F_MDS_QC", "LE_F_MDS_QC")
+
+gapfill_site <- data |>
+  group_by(site) |>
+  summarise(across(all_of(qc_vars),
+                   \(qc) round(100 * mean(qc > 0, na.rm = TRUE), 1),
+                   .names = "{sub('_QC', '', .col)} gap-filled (%)"),
+            .groups = "drop")
+
+gapfill_site
+```
+
+
+### Summary
+The site in France takes up most carbon in spring and summer, while the site in Germany takes up more carbon in winter and the site in Japan in autumn. 
+The site in France has the largest seasonal cycle.
+Nice to see the mean diurnal cycle and was supprised that there is so inconsistent data and so much gap-filled. 
+The site in Japan is gap-filled
+
+
+## Citation and Data
+
+Hirata, R., Takagi, K. (2025). Fluxnet Archive Product from CC-LaG Teshio Experimental Forest, 2001–2023, FLUXNET, https://hdl.handle.net/11676/U36jKvGfGICHSJO01Sk4jEZT                                                                         
+Monique Leclerc (2026), AmeriFlux FLUXNET-1F US-Akn Savannah River Site, Ver. v1.3_r1 (2011-2022), AmeriFlux AMP, (Dataset). https://doi.org/10.17190/AMF/2469442                                                                                
+Leonard, J., Bornet, F., François, B., Grehan, E. (2026). Fluxnet Archive Product from Estrees-Mons A28, 2017–2025, FLUXNET, https://hdl.handle.net/11676/tqY53lt1dCh3HZXtN-rLGEp5                                                               
+Hildebrandt, A., Rebmann, C., Bastos Campos, F., Dejosez, S., Dienstbach, L., Hautmann, D., Schmidt, P., Wiesen, R. (2026). Fluxnet Archive Product from Grosses Bruch, 2015–2025, FLUXNET, https://hdl.handle.net/11676/NY1UuClNrkeU0UUXUUoECmLZ
+
+FLUXNET data products (ONEFlux v1.3, 2026 release), downloaded with the FLUXNET Shuttle from AmeriFlux,
+the ICOS Carbon Portal and TERN. Licence: CC-BY-4.0. When using the data, cite each site's data product
+(the `cite` field in `sites.json`), cite Pastorello et al. (2020), *Scientific Data* 7, 225,
+https://doi.org/10.1038/s41597-020-0534-3, and include the FLUXNET acknowledgement:
+
+> FLUXNET data products were produced and harmonized by eddy covariance regional networks and data
+> processing centers, including AmeriFlux, ChinaFlux, European Fluxes Database, ICOS, JapanFlux, KoFlux,
+> OzFlux, SAEON, and TERN. These products also include a modified version of ERA5 hourly data provided by
+> the Copernicus Climate Change Service.
+
+Pastorello et al. (2020), Scientific Data 7, 225, https://doi.org/10.1038/s41597-020-0534-3
+
