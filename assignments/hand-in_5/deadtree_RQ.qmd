@@ -1,0 +1,197 @@
+---
+title: "Block 5 - Own Research Question"
+author: "Lilly"
+date: 2026-11-20
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  warning: false
+---
+
+# Merging Data and answering a Research Question
+
+Research Question: 
+Did deadwood coverage increase after 2018-2020?   
+
+Since I only have data from 2017-2025 for deadtrees, I will compare 2017-2020 with 2020-2025. 
+
+### Link to my github:
+https://github.com/lilupy/datascience_env_monit/tree/main
+
+## Libraries
+```{r}
+#| label: setup
+library(tidyverse)   # dplyr, ggplot2, readr, tidyr ...
+library(here)        # paths relative to the project root
+library(knitr)       # kable() for tables
+```
+ 
+## Data  
+ 
+The merged daily table (`09_merge.R`) combines the FLUXNET daily data with the
+yearly deadtrees.earth values (standing deadwood cover from 10 m satellite maps,
+Europe, 2017–2025, mean over a 2 km × 2 km box around each tower). The deadtrees
+values are the same for every day of a year, so the table is aggregated to one
+row per site and year. The climate variables give the drought context.
+
+## Scripts  
+
+Scripts used in the order:   
+block5_sites.R   
+01_era5land.R - downloaded for the next block   
+02_worldclim.R - however not used for analysis   
+03_dheed.R - however not used for analysis  
+06_deadtrees.R    
+09_merged.R  
+
+# Answering Question
+
+```{r}
+#| label: load-data
+daily <- read_csv(here("data", "processed", "site_daily.csv"), show_col_types = FALSE)
+ 
+dt <- daily |>
+  filter(!is.na(deadtrees_deadwood_pct)) |>             # European sites, 2017–2025
+  mutate(year = as.integer(format(date, "%Y"))) |>
+  group_by(site_id, year) |>
+  summarise(deadwood_pct   = first(deadtrees_deadwood_pct),   # constant within a year
+            tree_cover_pct = first(deadtrees_tree_cover_pct),
+            P_sum          = sum(P_F, na.rm = TRUE),          # mm per year
+            VPD_mean       = mean(VPD_F, na.rm = TRUE),       # hPa
+            TA_mean        = mean(TA_F, na.rm = TRUE),        # °C
+            GPP_sum        = sum(GPP_NT_VUT_REF, na.rm = TRUE), # g C m-2 per year
+            n_days         = n(),
+            .groups = "drop")
+ 
+dt |> count(site_id, name = "n_years")
+```
+ 
+Years with fewer than ~330 days would bias the annual sums, so check `n_years`: 
+ 
+```{r}
+#| label: check-days
+dt |> filter(n_days < 330) |> select(site_id, year, n_days)
+```
+ 
+## Drought context
+ 
+```{r}
+#| label: fig-climate
+#| fig-cap: "Annual precipitation, mean vapour pressure deficit and annual GPP per site. The grey band marks 2018–2020."
+dt |>
+  select(site_id, year, `Precipitation (mm yr⁻¹)` = P_sum,
+         `Mean VPD (hPa)` = VPD_mean, `GPP (g C m⁻² yr⁻¹)` = GPP_sum) |>
+  pivot_longer(-c(site_id, year), names_to = "variable", values_to = "value") |>
+  ggplot(aes(x = year, y = value, colour = site_id)) +
+  annotate("rect", xmin = 2017.5, xmax = 2020.5, ymin = -Inf, ymax = Inf,
+           fill = "grey85", alpha = 0.6) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.8) +
+  facet_wrap(~ variable, ncol = 1, scales = "free_y") +
+  scale_x_continuous(breaks = 2017:2025) +
+  labs(x = "Year", y = NULL, colour = "Site") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank())
+```
+ 
+## Periods
+ 
+Central Europe had an exceptional drought from 2018 to 2020. Tree mortality
+usually shows up with a delay, so the period **up to and including 2020** is
+compared with the period **after the drought**. 2020 is put in the first period
+only, so that no year is counted twice.
+ 
+```{r}
+#| label: periods
+before_end <- 2020   # last year of the first period -- change here if needed
+ 
+dt <- dt |>
+  mutate(period = if_else(year <= before_end,
+                          paste0("2017–", before_end),
+                          paste0(before_end + 1, "–2025")),
+         period = factor(period, levels = c(paste0("2017–", before_end),
+                                            paste0(before_end + 1, "–2025"))))
+ 
+dt |> count(site_id, period) |> kable()
+```
+ 
+## Deadwood cover over time
+ 
+```{r}
+#| label: fig-timeseries
+#| fig-cap: "Yearly standing deadwood cover around each tower. The grey band marks the 2018–2020 drought."
+ggplot(dt, aes(x = year, y = deadwood_pct, colour = site_id)) +
+  annotate("rect", xmin = 2017.5, xmax = 2020.5, ymin = -Inf, ymax = Inf,
+           fill = "grey85", alpha = 0.6) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = 2017:2025) +
+  labs(x = "Year", y = "Standing deadwood cover (%)", colour = "Site") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank())
+```
+ 
+## Comparison of the two periods
+ 
+```{r}
+#| label: tbl-periods
+#| tbl-cap: "Mean standing deadwood cover per period and the change between them."
+period_means <- dt |>
+  group_by(site_id, period) |>
+  summarise(mean_deadwood = mean(deadwood_pct, na.rm = TRUE), .groups = "drop")
+ 
+change <- period_means |>
+  pivot_wider(names_from = period, values_from = mean_deadwood) |>
+  mutate(`Change (pp)` = .data[[levels(dt$period)[2]]] - .data[[levels(dt$period)[1]]],
+         `Change (%)`  = 100 * `Change (pp)` / .data[[levels(dt$period)[1]]])
+ 
+kable(change, digits = 2,
+      col.names = c("Site", paste("Mean", levels(dt$period), "(%)"),
+                    "Change (percentage points)", "Relative change (%)"))
+```
+ 
+```{r}
+#| label: fig-periods
+#| fig-cap: "Standing deadwood cover per year, grouped by period. Points are single years, the black diamond is the period mean."
+ggplot(dt, aes(x = period, y = deadwood_pct, colour = period)) +
+  geom_jitter(width = 0.1, size = 2.5, alpha = 0.8) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 5, colour = "black") +
+  facet_wrap(~ site_id, scales = "free_y") +
+  labs(x = NULL, y = "Standing deadwood cover (%)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+ 
+## Statistical test
+ 
+A one-sided Wilcoxon rank-sum test per site checks whether deadwood cover is
+higher in the second period. With only 4 and 5 years per site, the test has
+very little power, so the result should be read together with the figures,
+not on its own.
+ 
+```{r}
+#| label: tbl-test
+#| tbl-cap: "One-sided Wilcoxon rank-sum test (H1: deadwood cover higher after the drought)."
+tests <- dt |>
+  group_by(site_id) |>
+  summarise(p_value = wilcox.test(deadwood_pct[period == levels(period)[2]],
+                                  deadwood_pct[period == levels(period)[1]],
+                                  alternative = "greater", exact = FALSE)$p.value,
+            .groups = "drop")
+ 
+kable(tests, digits = 3, col.names = c("Site", "p-value"))
+```
+ 
+## Interpretation
+ 
+Did the mean deadwood cover rise from the first to the second period at each site?   
+  *The change in percentage cover decreased 0.98% for the site in germany (DE-GsB) and increases by 0.01% for the site in France (FR-EM2). However the t-test gave no significant results, suggesting no real trend.*
+
+Do the drought years show up at the towers themselves (low precipitation, high VPD, lower GPP)?  
+    *No, the drought context was not really be detected in the twoer data.*
+
+Limitations:   
+    *- only two European sites, 9 years, a fixed 2 km box, and the satellite maps are model output extrapolated from drone labels, not direct measurements.*    
+    *- Low tree cover limits how much deadwood there can be: DE-GsB is a cropland site with only ~12 % tree cover, so small absolute changes are expected there.*

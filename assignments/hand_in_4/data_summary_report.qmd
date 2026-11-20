@@ -11,6 +11,10 @@ execute:
 ---
 # Data Summary Report
 
+### Link to my github:
+https://github.com/lilupy/datascience_env_monit/tree/main
+
+
 ## Section 1 - Overview
 ```{r}
 #libraries
@@ -312,11 +316,16 @@ Nice to see the mean diurnal cycle and was supprised that there is so inconsiste
 The site in Japan is gap-filled
 
 
-## Citation and Data
+## Citation and Data  
 
-Hirata, R., Takagi, K. (2025). Fluxnet Archive Product from CC-LaG Teshio Experimental Forest, 2001–2023, FLUXNET, https://hdl.handle.net/11676/U36jKvGfGICHSJO01Sk4jEZT                                                                         
-Monique Leclerc (2026), AmeriFlux FLUXNET-1F US-Akn Savannah River Site, Ver. v1.3_r1 (2011-2022), AmeriFlux AMP, (Dataset). https://doi.org/10.17190/AMF/2469442                                                                                
-Leonard, J., Bornet, F., François, B., Grehan, E. (2026). Fluxnet Archive Product from Estrees-Mons A28, 2017–2025, FLUXNET, https://hdl.handle.net/11676/tqY53lt1dCh3HZXtN-rLGEp5                                                               
+Anthropic. (2026). Claude (Claude Opus 5.5) [Large language model]. https://claude.ai  
+
+Hirata, R., Takagi, K. (2025). Fluxnet Archive Product from CC-LaG Teshio Experimental Forest, 2001–2023, FLUXNET, https://hdl.handle.net/11676U36jKvGfGICHSJO01Sk4jEZT         
+
+Monique Leclerc (2026), AmeriFlux FLUXNET-1F US-Akn Savannah River Site, Ver. v1.3_r1 (2011-2022), AmeriFlux AMP, (Dataset). https://doi.org/10.17190/AMF/2469442                                           
+
+Leonard, J., Bornet, F., François, B., Grehan, E. (2026). Fluxnet Archive Product from Estrees-Mons A28, 2017–2025, FLUXNET, https://hdl.handle.net/11676/tqY53lt1dCh3HZXtN-rLGEp5                     
+                                           
 Hildebrandt, A., Rebmann, C., Bastos Campos, F., Dejosez, S., Dienstbach, L., Hautmann, D., Schmidt, P., Wiesen, R. (2026). Fluxnet Archive Product from Grosses Bruch, 2015–2025, FLUXNET, https://hdl.handle.net/11676/NY1UuClNrkeU0UUXUUoECmLZ
 
 FLUXNET data products (ONEFlux v1.3, 2026 release), downloaded with the FLUXNET Shuttle from AmeriFlux,
