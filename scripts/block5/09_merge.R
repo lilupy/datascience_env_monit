@@ -77,6 +77,15 @@ if (!is.null(dh)) {
   daily <- left_join(daily, select(dh, site_id, date, dheed_event, dheed_label), by = c("site_id", "date")) |>
     mutate(dheed_event = coalesce(dheed_event, FALSE))
 }
+#added dead tree data
+dt <- read_if(ext("deadtrees", "deadtrees_my_sites.csv"))
+if (!is.null(dt)) {
+  daily <- daily |>
+    mutate(year = as.integer(format(date, "%Y"))) |>
+    left_join(rename_with(dt, ~ paste0("deadtrees_", .x), -c(site_id, year)),
+              by = c("site_id", "year")) |>
+    select(-year)
+}
 write_csv(daily, file.path("data", "processed", "site_daily.csv"))
 say("site_daily.csv: ", nrow(daily), " tower-days × ", ncol(daily), " columns",
     "\n    Units: GPP/NEE/RECO in the DD files are g C m⁻² d⁻¹; LE in W m⁻²; era5l_swvl in m³ m⁻³.")

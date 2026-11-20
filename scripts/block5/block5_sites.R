@@ -7,8 +7,8 @@
 # Run all scripts from your project folder (the one with data/ and scripts/).
 
 # ---- Your settings ------------------------------------------------------------
-my_student <- "07"     # your student number from tower_sets_block4.csv
-my_sites   <- NULL     # or pick sites yourself, e.g. c("DE-Hai", "FR-Hes")
+my_student <- "16"     # your student number from tower_sets_block4.csv
+my_sites   <- c("JP-Tef", "US-Akn", "DE-GsB", "FR-EM2") # AU-GWW site had no data
 tower_csv  <- "tower_sets_block4.csv"   # from ILIAS (folder DATA), same file as Block 4
 
 # A student number on the command line wins

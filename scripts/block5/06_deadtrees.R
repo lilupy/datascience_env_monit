@@ -29,6 +29,7 @@ forest_min <- 0.20   # a pixel is forest if tree cover > 20 %
 dead_min   <- 0.30   # ... and "mortality" if standing deadwood cover > 30 %
 base <- "https://data.rsc4earth.de/download/deadtrees.earth_maps/v5_europe_composite_epsg_3035"
 
+
 d <- out_dir("deadtrees")
 clip_dir <- file.path(d, "clips"); dir.create(clip_dir, showWarnings = FALSE)
 eu <- sites[sites$continent == "Europe", ]
@@ -55,7 +56,8 @@ for (i in seq_len(nrow(eu))) {
   s <- eu[i, ]
   xy  <- project(vect(s, geom = c("lon", "lat"), crs = "EPSG:4326"), "EPSG:3035")
   c0  <- crds(xy)
-  box <- ext(c0[1] - half_box_m, c0[1] + half_box_m, c0[2] - half_box_m, c0[2] + half_box_m)
+  box <- terra::ext(c0[1] - half_box_m, c0[1] + half_box_m,
+                  c0[2] - half_box_m, c0[2] + half_box_m)
   for (y in years) {
     tc <- load_box("tree_cover", y, box)
     dw <- load_box("standing_deadwood_cover", y, box)
@@ -79,3 +81,4 @@ print(res_tab, row.names = FALSE, digits = 3)
 say("Done. Files in ", d,
     "\n    A grassland or cropland tower has little tree cover: that is a result, not an error.",
     "\n    Plot the clips: plot(rast('", clip_dir, "/<SITE>_deadwood_2023.tif'))")
+
